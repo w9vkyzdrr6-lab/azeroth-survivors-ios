@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Azeroth Survivors</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #07070a; color: #d8cba0;
+    font-family: -apple-system, system-ui, sans-serif; overflow: hidden; }
+  #wrap { position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; padding: 24px; box-sizing: border-box; }
+  #box { max-width: 620px; width: 100%; }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 14px; letter-spacing: .4px; }
+  .row { display: flex; justify-content: space-between; gap: 16px;
+    padding: 7px 0; border-bottom: 1px solid rgba(216,203,160,.13); font-size: 13px; }
+  .k { color: #9a9070; }
+  .v { color: #e8dcb0; text-align: right; word-break: break-all; }
+  .ok { color: #7fd18b; }
+  .bad { color: #e2635f; }
+  #hint { margin-top: 18px; font-size: 13px; line-height: 1.65; color: #9a9070; }
+  #spin { margin-top: 18px; font-size: 13px; color: #9a9070; }
+</style>
+</head>
+<body>
+<div id="wrap"><div id="box">
+  <h1>Azeroth Survivors — 启动自检</h1>
+  <div id="rows"></div>
+  <div id="hint"></div>
+  <div id="spin">正在启动游戏…</div>
+</div></div>
+<script>
+(function () {
+  var rows = [];
+  function add(k, v, cls) { rows.push({ k: k, v: v, cls: cls || '' }); }
+
+  var origin = location.origin;
+  var secure = window.isSecureContext;
+  var hasGpu = 'gpu' in navigator;
+  var adapterOk = false;
+
+  add('页面来源', origin);
+  add('安全上下文', secure ? '是' : '否', secure ? 'ok' : 'bad');
+  add('navigator.gpu', hasGpu ? '存在' : '不存在', hasGpu ? 'ok' : 'bad');
+
+  var fatal = !secure || !hasGpu;
+
+  function render(hintHtml) {
+    document.getElementById('rows').innerHTML = rows.map(function (r) {
+      return '<div class="row"><span class="k">' + r.k + '</span><span class="v ' +
+        r.cls + '">' + r.v + '</span></div>';
+    }).join('');
+    document.getElementById('hint').innerHTML = hintHtml || '';
+  }
+
+  if (!fatal) {
+    navigator.gpu.requestAdapter().then(function (adapter) {
+      add('GPU 适配器', adapter ? '已获取' : '获取失败', adapter ? 'ok' : 'bad');
+      if (adapter) {
+        try {
+          var info = adapter.info || {};
+          add('GPU', [info.vendor, info.architecture].filter(Boolean).join(' ') || '未知');
+        } catch (e) {}
+        location.replace('./game.html');
+        return;
+      }
+      render('拿到了 WebGPU 接口，但适配器获取失败。通常是显卡驱动或设备不支持，' +
+             '可尝试重启设备后再次打开。');
+    }).catch(function (e) {
+      add('适配器错误', String(e && e.message || e).slice(0, 80), 'bad');
+      render('WebGPU 初始化异常，请把这个界面截图发给开发者。');
+    });
+  } else {
+    var why = [];
+    if (!secure) why.push('当前页面不是安全上下文，WebGPU 被浏览器禁用。<br>' +
+      '原始来源：' + origin);
+    if (!hasGpu) why.push('系统未暴露 WebGPU 接口，需要 iOS 26 及以上。');
+    render('无法启动：<br>' + why.join('<br>'));
+    document.getElementById('spin').style.display = 'none';
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

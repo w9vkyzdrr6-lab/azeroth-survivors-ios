@@ -1,0 +1,12 @@
+{
+  "appId": "local.azerothsurvivors.ios",
+  "appName": "Azeroth Survivors",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "preferredContentMode": "app",
+    "backgroundColor": "#000000",
+    "limitsNavigationsToAppBoundDomains": false,
+    "scrollEnabled": false
+  }
+}

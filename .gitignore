@@ -1,0 +1,8 @@
+node_modules/
+ios/App/build/
+ios/App/App/public/*
+!ios/App/App/public/.gitkeep
+Payload/
+*.ipa
+*.tmp
+.DS_Store
