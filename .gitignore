@@ -6,3 +6,6 @@ Payload/
 *.ipa
 *.tmp
 .DS_Store
+
+diag.log
+*.log

@@ -54,6 +54,13 @@ def copy_tree(src, dst, on_progress=None):
     return done, copied_bytes
 
 
+ALREADY_COMPRESSED = {
+    ".mpq", ".zip", ".gz", ".7z", ".rar", ".wasm", ".ogg", ".mp3", ".wav",
+    ".blp", ".jpg", ".jpeg", ".png", ".webp", ".ttf", ".otf", ".woff", ".woff2",
+    ".mp4", ".webm", ".bin", ".dll", ".exe",
+}
+
+
 def zip_dir(src_root, out_path, on_progress=None):
     entries = []
     for root, _dirs, files in os.walk(src_root):
@@ -66,8 +73,10 @@ def zip_dir(src_root, out_path, on_progress=None):
     with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED, compresslevel=1,
                          allowZip64=True) as zf:
         for i, (full, rel) in enumerate(entries, 1):
-            zf.write(full, rel)
-            if on_progress and (i % 500 == 0 or i == total):
+            ext = os.path.splitext(full)[1].lower()
+            method = zipfile.ZIP_STORED if ext in ALREADY_COMPRESSED else zipfile.ZIP_DEFLATED
+            zf.write(full, rel, compress_type=method)
+            if on_progress and (i % 2000 == 0 or i == total):
                 on_progress(i, total, time.time() - t0)
 
 

@@ -5,6 +5,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT/ios/App"
 
+echo "== toolchain =="
+xcodebuild -version
+xcrun --sdk iphoneos --show-sdk-version
+
 echo "== xcodebuild =="
 xcodebuild \
   -project App.xcodeproj \
@@ -35,8 +39,8 @@ mkdir -p Payload
 cp -R "$APP_PATH" Payload/
 rm -rf "Payload/$(basename "$APP_PATH")/_CodeSignature"
 
-# zip is available on macOS runners
-zip -qry AzerothSurvivors-unsigned.ipa Payload
+# zip is available on macOS runners; -X keeps Finder metadata out of the bundle
+zip -qrX AzerothSurvivors-unsigned.ipa Payload
 rm -rf Payload
 
 ls -lh AzerothSurvivors-unsigned.ipa

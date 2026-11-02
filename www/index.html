@@ -7,19 +7,20 @@
 <title>Azeroth Survivors</title>
 <style>
   html, body { margin: 0; height: 100%; background: #07070a; color: #d8cba0;
-    font-family: -apple-system, system-ui, sans-serif; overflow: hidden; }
+    font-family: -apple-system, system-ui, sans-serif; overflow: hidden;
+    -webkit-user-select: none; user-select: none; }
   #wrap { position: absolute; inset: 0; display: flex; align-items: center;
-    justify-content: center; padding: 24px; box-sizing: border-box; }
+    justify-content: center; padding: 20px; box-sizing: border-box; }
   #box { max-width: 620px; width: 100%; }
-  h1 { font-size: 20px; font-weight: 500; margin: 0 0 14px; letter-spacing: .4px; }
+  h1 { font-size: 19px; font-weight: 500; margin: 0 0 12px; letter-spacing: .4px; }
   .row { display: flex; justify-content: space-between; gap: 16px;
-    padding: 7px 0; border-bottom: 1px solid rgba(216,203,160,.13); font-size: 13px; }
-  .k { color: #9a9070; }
+    padding: 6px 0; border-bottom: 1px solid rgba(216,203,160,.13); font-size: 13px; }
+  .k { color: #9a9070; flex: 0 0 auto; }
   .v { color: #e8dcb0; text-align: right; word-break: break-all; }
   .ok { color: #7fd18b; }
   .bad { color: #e2635f; }
-  #hint { margin-top: 18px; font-size: 13px; line-height: 1.65; color: #9a9070; }
-  #spin { margin-top: 18px; font-size: 13px; color: #9a9070; }
+  #hint { margin-top: 16px; font-size: 13px; line-height: 1.6; color: #9a9070; }
+  #spin { margin-top: 16px; font-size: 13px; color: #9a9070; }
 </style>
 </head>
 <body>
@@ -34,16 +35,29 @@
   var rows = [];
   function add(k, v, cls) { rows.push({ k: k, v: v, cls: cls || '' }); }
 
+  // 电脑上的诊断收集端（局域网）。失败不影响游戏启动。
+  var REPORT_HOSTS = ['192.168.8.103:8787'];
+
   var origin = location.origin;
-  var secure = window.isSecureContext;
+  var secure = !!window.isSecureContext;
   var hasGpu = 'gpu' in navigator;
-  var adapterOk = false;
+  var fatal = !secure || !hasGpu;
+  var report = {
+    origin: origin,
+    isSecureContext: secure,
+    hasNavigatorGpu: hasGpu,
+    ua: navigator.userAgent,
+    hw: navigator.hardwareConcurrency || 0,
+    screen: screen.width + 'x' + screen.height,
+    dpr: window.devicePixelRatio,
+    ts: new Date().toISOString(),
+    verdict: '',
+    detail: {}
+  };
 
   add('页面来源', origin);
   add('安全上下文', secure ? '是' : '否', secure ? 'ok' : 'bad');
   add('navigator.gpu', hasGpu ? '存在' : '不存在', hasGpu ? 'ok' : 'bad');
-
-  var fatal = !secure || !hasGpu;
 
   function render(hintHtml) {
     document.getElementById('rows').innerHTML = rows.map(function (r) {
@@ -53,28 +67,66 @@
     document.getElementById('hint').innerHTML = hintHtml || '';
   }
 
+  function sendReport() {
+    if (!report.verdict) return;
+    var body = JSON.stringify(report);
+    REPORT_HOSTS.forEach(function (h) {
+      try {
+        var x = new XMLHttpRequest();
+        x.open('POST', 'http://' + h + '/report', true);
+        x.setRequestHeader('Content-Type', 'application/json');
+        x.timeout = 1500;
+        x.send(body);
+      } catch (e) {}
+    });
+  }
+
+  function proceed() {
+    report.verdict = 'OK';
+    sendReport();
+    location.replace('./game.html');
+  }
+
   if (!fatal) {
     navigator.gpu.requestAdapter().then(function (adapter) {
-      add('GPU 适配器', adapter ? '已获取' : '获取失败', adapter ? 'ok' : 'bad');
       if (adapter) {
+        var label = '已获取';
         try {
           var info = adapter.info || {};
-          add('GPU', [info.vendor, info.architecture].filter(Boolean).join(' ') || '未知');
+          var bits = [info.vendor, info.architecture, info.description].filter(Boolean);
+          if (bits.length) label = bits.join(' ');
+          report.detail.adapter = bits.join(' ');
         } catch (e) {}
-        location.replace('./game.html');
+        add('GPU 适配器', label, 'ok');
+        render();
+        proceed();
         return;
       }
-      render('拿到了 WebGPU 接口，但适配器获取失败。通常是显卡驱动或设备不支持，' +
-             '可尝试重启设备后再次打开。');
+      add('GPU 适配器', '获取失败', 'bad');
+      report.verdict = 'NO_ADAPTER';
+      sendReport();
+      render('拿到了 WebGPU 接口，但适配器获取失败。多半是设备/驱动不支持，可重启后重试。');
+      document.getElementById('spin').style.display = 'none';
     }).catch(function (e) {
-      add('适配器错误', String(e && e.message || e).slice(0, 80), 'bad');
+      var msg = String((e && e.message) || e).slice(0, 90);
+      add('适配器错误', msg, 'bad');
+      report.verdict = 'ADAPTER_ERROR';
+      report.detail.error = msg;
+      sendReport();
       render('WebGPU 初始化异常，请把这个界面截图发给开发者。');
+      document.getElementById('spin').style.display = 'none';
     });
   } else {
     var why = [];
-    if (!secure) why.push('当前页面不是安全上下文，WebGPU 被浏览器禁用。<br>' +
-      '原始来源：' + origin);
-    if (!hasGpu) why.push('系统未暴露 WebGPU 接口，需要 iOS 26 及以上。');
+    if (!secure) {
+      why.push('当前页面<b>不是安全上下文</b>，WebGPU 被系统禁用。<br>来源：' + origin);
+      report.verdict = 'NOT_SECURE';
+    }
+    if (!hasGpu) {
+      why.push('系统未暴露 WebGPU 接口，需要 iOS 26 及以上。');
+      report.verdict = report.verdict || 'NO_GPU_OBJECT';
+    }
+    sendReport();
     render('无法启动：<br>' + why.join('<br>'));
     document.getElementById('spin').style.display = 'none';
   }
