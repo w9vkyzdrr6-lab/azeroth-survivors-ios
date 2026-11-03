@@ -24,7 +24,8 @@ xcodebuild \
   ENABLE_BITCODE=NO \
   build
 
-APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)"
+# 记为绝对路径：后面会 cd 到仓库根目录，相对路径会失效
+APP_PATH="$PWD/$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' | head -1)"
 if [ -z "$APP_PATH" ]; then
   echo "ERROR: no .app produced"
   exit 1
